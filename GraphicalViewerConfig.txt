@@ -11,6 +11,10 @@
 "csvs":[
 	["Timestamp","Ac"]
 	],
+"columnsOfInterest":["Timestamp","Av","SD","Board","Ext Temp"],
+"squareSizeFrom":"SD",
+"squareColourFrom":"Av",
+"timestampAs":"Timestamp",
 "csvOutputFile":[
 	      ["TimeVsGain.txt"]
 	     ],
@@ -18,6 +22,6 @@
 "colourEnabled":true,
 "squareSize": 28,
 "offset": 70,
-"details":[10,10],
+"boards|recs":[10,10],
 "dimensions":[800,600]
 }

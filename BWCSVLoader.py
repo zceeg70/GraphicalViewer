@@ -31,17 +31,24 @@ class CSV:
 class LineGen:
     def __init__(self,recs):
         self.recs = recs
+        self.boards = 10
 
     def headerLine(self):
         recs = self.recs
+        boards = self.boards
         first = "Timestamp"
         header = []
         header.append(first)
-        for x in range(1,recs+1):
-            string = "Temp "+str(x)
+        string = "Ext Temp"
+        header.append(string)
+        for x in range(0,boards):
+            string = "Board"+str(x)+"Temp"
             header.append(string)
-        for x in range(1,recs+1):
-            string = "Sd "+str(x)
+        for x in range(0,recs):
+            string = "Rx"+str(x)+" Av"
+            header.append(string)
+        for x in range(0,recs):
+            string = "Rx"+str(x)+" SD"
             header.append(string)
         return header
             #print(string)
@@ -50,35 +57,42 @@ class LineGen:
         recs = self.recs
         line = []
         line.append(str(self.timeStamp()))
+        line.append(19.4) # Ext Temp
+        for x in range(0,self.boards):
+            line.append(self.boardTemp())
         for x in range(0,recs):
-            m = self.TMeas(temp)
-            #print(m)
-            line.append(m)
+            line.append(self.AVMeas(temp))
         for x in range(0,recs):
-            line.append(self.Std(temp,uncertainty))
+            line.append(self.Sd(temp,uncertainty))
         #print(line)
         return line
+
+    def boardTemp(self):
+        value = float(random.randrange(190,210)/10)
+        return value
+        
 
     def timeStamp(self):
         return datetime.today()
 
-    def TMeas(self,temp = "ambient"):
+    def AVMeas(self,temp = "ambient"):
         if "ambient" in temp.lower():
-            temperature = random.randrange(29100,29500,5)
+            AV = random.randrange(29100,29500,5)
         elif "cold" in temp.lower():
-            temperature = random.randrange(24800,25000,5)
+            #print("Im cold")
+            AV = random.randrange(24800,25000,5)
         elif "changing" in temp.lower():
             #print("rr")
-            temperature = random.randrange(24800, 29500,10)
+            AV = random.randrange(24800, 29500,10)
            # print(temperature)
         else:
             return False
-        tfloat = float(temperature)
+        tfloat = float(AV)
         
         #print((tfloat/100))
         return (tfloat/100)
 
-    def Std(self,temp = "ambient", uncertainty = 0):
+    def Sd(self,temp = "ambient", uncertainty = 0):
         if "ambient" in temp.lower(): # want medium variation
             std = random.randrange(0,4000)
         elif "cold" in temp.lower(): # slightly lower variation
