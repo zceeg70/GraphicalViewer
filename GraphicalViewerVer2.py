@@ -13,17 +13,6 @@ class ConfigClass:
     def __init__(self):
         self.loadConfig()
 
-    def extract(self,configDict):
-        self.squareSize = configDict["squareSize"]
-        self.colourSteps = configDict["colourSteps"]
-        self.colourEnabled = configDict["colourEnabled"]
-        self.CSVFilename = configDict["CSV_to_load"]
-        measurementDetails = configDict["details"]
-        self.boards = measurementDetails[0]
-        self.rpboard = measurementDetails[1]
-        self.dimensions = configDict["dimensions"]
-        self.offset = configDict["offset"]
-    
     def loadConfig(self):
         configFileName = "GraphicalViewerConfig.txt"
         if not os.path.isfile(configFileName):
@@ -33,13 +22,23 @@ class ConfigClass:
         configDict = json.loads(configuration)
         self.extract(configDict)
         
-        #
-        #configuration = ConfigClass()
-        #configuration.extract(configDict)
-        #return configuration
+    def extract(self,configDict):
+        self.squareSize = configDict["squareSize"]
+        self.colourSteps = configDict["colourSteps"]
+        self.colourEnabled = configDict["colourEnabled"]
+        self.CSVFilename = configDict["CSV_to_load"]
+        measurementDetails = configDict["boards|recs"]
+        self.boards = measurementDetails[0]
+        self.rpboard = measurementDetails[1]
+        self.dimensions = configDict["dimensions"]
+        self.offset = configDict["offset"]
+        self.specCol = configDict["columnsOfInterest"]
+        self.squareSizeFrom = configDict["squareSizeFrom"]
+        self.squareColourFrom = configDict["squareColourFrom"]
 
 class CSVLoader:
-    def __init__(self,filename,callback=None):
+    def __init__(self,Configuration,callback=None):
+        filename = Configuration.CSVFilename
         if not os.path.isfile(filename):
             print("CSV File %s not found"%(filename))
             sys.exit()
@@ -47,7 +46,10 @@ class CSVLoader:
         headers = []
         self.filename = filename
         self.callback = callback
+        self.Configuration = Configuration
         self.getHeaders()
+        self.getData()
+        self.splitData()
 
     def getHeaders(self):
         filename = self.filename
@@ -61,6 +63,46 @@ class CSVLoader:
         self.headersToIndexs()
         return headers
 
+    def headersToIndexs(self): # Looks for the value "1" in header
+        # which should occur twice.
+        # breakpoints are the column values
+        headers = self.headers
+        splitPoints = self.Configuration.specCol #Strings of expected headers
+        dataSplitPoints = {}
+        breakPoints = []
+        headerCount = {}
+        for expectedString in splitPoints:
+            headerCount[expectedString] = 0
+            print("Searching for header: %s"%(expectedString))
+            for indexH,header in enumerate(headers):
+                #print("Searching for header: %s,found header: %s"%(expectedString,header))
+                if expectedString in header:
+                    headerCount[expectedString] += 1
+                    if not expectedString in dataSplitPoints:
+                        dataSplitPoints[expectedString] = indexH
+                        breakPoints.append(indexH)
+            if headerCount[expectedString] == 0:
+                print("Header not found:%s. Update config file. System will exit"%(expectedString))
+                sys.exit()
+            else:
+                print("Found %d occurences of header: %s"%(headerCount[expectedString],expectedString))
+                print("     at column: %s"%(dataSplitPoints[expectedString]))
+        cumulative = 0
+        for item in headerCount:
+            cumulative += headerCount[item]
+        if cumulative < len(headers):
+            print("Some header was not identified in configuration")
+        elif cumulative == int(len(headers)):
+            print("Number of columns tallys with columns specified in configuration")
+        breakPoints.append(len(headers))
+        
+        dataSets = {}
+        dataSets = sorted(dataSplitPoints,key=dataSplitPoints.__getitem__)
+        dataSetsMapping = {}
+        dataSetsMapping = dataSets
+        self.breakPoints = breakPoints
+        self.dataSetsMapping = dataSetsMapping
+    
     def getData(self):
         filename = self.filename
         data = []
@@ -68,90 +110,101 @@ class CSVLoader:
             datareader = csv.reader(csvfile)
             for row in datareader:
                 data.append(row)
-        self.headersToIndexs()
-        breakPoints = self.breakPoints
-        rowMax,rowMin = 0,0
-        rowMaxMin = []
-        dataMax = 0
-        dataMin = 400 # Take this from a config?
-        sdRowMax,sdRowMin = 0,0
-        sdDataMax = 0
-        sdDataMin = 400
-        #print(breakPoints)
-        for index, row in enumerate(data):
-            rowMax,rowMin = 0,400
-            sdRowMax,sdRowMin = 0,400
-            #print(rowMax,rowMin,sdRowMax,sdRowMin,index)
-            
-            if index == 0: continue
-            row[1:] = [float(i) for i in row[1:]]
-            
-            rowMax = max(row[1:breakPoints[1]])
-            rowMin = min(row[1:breakPoints[1]])
-            
-            
-            if dataMin > rowMin: dataMin = rowMin
-            if dataMax < rowMax: dataMax = rowMax
-            
-            sdRowMax = max(row[breakPoints[1]:])
-            sdRowMin = min(row[breakPoints[1]:])
-            #print(rowMax,rowMin,sdRowMax,sdRowMin)
-            rowMaxMin.append([rowMax,rowMin,sdRowMax,sdRowMin])
-            if sdDataMin > sdRowMin: sdDataMin = sdRowMin
-            if sdDataMax < sdRowMax: sdDataMax = sdRowMax
-            #sys.exit()
-       # print(dataMax,dataMin,sdDataMax,sdDataMin)
-        dataMaxMin = [dataMax,dataMin,sdDataMax,sdDataMin]
-       # print(rowMaxMin)
-        self.dataMaxMin = dataMaxMin
-        self.rowMaxMin = rowMaxMin
-        return data,dataMaxMin,rowMaxMin
-
-    def headersToIndexs(self): # Looks for the value "1" in header
-        # which should occur twice.
-        # breakpoints are the column values
-        headers = self.headers
-        print(headers)
-        breakPoints = []
-        for indexH, header in enumerate(headers):
-            if indexH == 0: continue
-            tokens = header.split(" ")
-            if tokens[1] is "1":
-                breakPoints.append(indexH)
-        self.breakPoints = breakPoints
-            
-    def getFoldedRow(self):
-        filename = self.filename
-        breakPoints = self.breakPoints
-        # breakpoints found via self.headersToIndexs
-        pointRange = breakPoints[1] - breakPoints[0] -1 
+     #   self.headersToIndexs()
+     #   breakPoints = self.breakPoints
         
-        foldedRow = [] # First list is timestamp, 2nd Av, 3rd Sd
-        with open(filename,"r") as csvfile:
-            datareader = csv.reader(csvfile)
-            for index, row in enumerate(datareader):
-                if index == 0: continue
-                else:
-                    foldedRow.append([row[0]])
-                    #print(row)
-                    for x in range(breakPoints[0],breakPoints[1]):
-                        foldedRow.append([row[x],row[x+pointRange]])
-                    break
-        #print foldedRow
-        return foldedRow
-                
-                
-                
-    def getColumnByHeader(self,header):
-        filename = self.filename
-        indexHeader = self.headers.index(header)
-        with open(filename,"r") as csvfile:
-            datareader = csv.reader(csvfile)
-            inputColumn = []
-            for index,row in enumerate(datareader):
-                inputColumn.append(row[indexHeader])
+       # rowMaxMin = []
+     #   
+      #  for index, row in enumerate(data): # Each row in data find max/mins
+        #    if index == 0: continue
+       #     row[1:] = [float(i) for i in row[1:]]
+            
+        #    rowMax = max(row[1:breakPoints[1]])
+        #    rowMin = min(row[1:breakPoints[1]])
 
-        return inputColumn
+         #   sdRowMax = max(row[breakPoints[1]:])
+         #   sdRowMin = min(row[breakPoints[1]:])
+            
+          #  if index == 1:
+          #      dataMin,dataMax = rowMin,rowMax
+          #      sdDataMin,sdDataMax = sdRowMin,sdRowMax
+          #  else:
+          #      if dataMin > rowMin: dataMin = rowMin
+          #      if dataMax < rowMax: dataMax = rowMax
+          #      if sdDataMin > sdRowMin: sdDataMin = sdRowMin
+          #      if sdDataMax < sdRowMax: sdDataMax = sdRowMax
+          #  rowMaxMin.append([rowMax,rowMin,sdRowMax,sdRowMin])
+            
+        #dataMaxMin = [dataMax,dataMin,sdDataMax,sdDataMin]
+        #self.dataMaxMin = dataMaxMin
+        #self.rowMaxMin = rowMaxMin
+        self.data = data
+        #return data,dataMaxMin,rowMaxMin
+
+    def splitData(self):
+        data = self.data
+        breakPoints = sorted(self.breakPoints)
+        dataSetsMapping = self.dataSetsMapping
+        mappedSets = {}
+        sets = len(breakPoints)-1 # number of sets of data
+        datasets = []
+        maxminSet = []
+        for x in range(0,sets):
+            newSet = []
+            for row in data:
+                newSet.append(row[breakPoints[x]:breakPoints[x+1]])
+            datasets.append(newSet)
+            maxmin = self.getMaxMin(newSet)
+            if type(maxmin) is bool:
+                timestamp = newSet
+            maxminSet.append(maxmin)
+            #print(newSet[0])
+        if len(datasets) == len(dataSetsMapping):
+            print("Mapping")
+            for dataset,maxmin,mapping in zip(datasets,maxminSet,dataSetsMapping):
+                mappedSets[mapping] = {"data":dataset,"maxmin":maxmin}
+        
+        #print(mappedSets.keys())
+        #print(mappedSets["Timestamp"].keys())
+        #print(mappedSets["Timestamp"]["data"])
+        #print(mappedSets["Timestamp"])
+        self.mappedSets = mappedSets
+        # At this point script has multiple data sets in its possession, accessible through the header
+        # generic name
+        
+    def getMaxMin(self,dataset):
+        rowMaxList,rowMinList = [],[]
+        dataMaxMin = []
+        unparseableFlag = False
+        for index, row in enumerate(dataset):
+            #print(row)
+            if 'Timestamp' in row:
+                #print("Detected 'Timestamp'")
+                unparseableFlag = True
+                return False
+            if index == 0:
+                #print(row)
+                continue
+            #print(type(row),len(row))
+            if len(row) > 1:
+                row = [float(i) for i in row[1:]]
+                rowMax = max(row)
+                rowMin = min(row)
+                #print(rowMax,rowMin)
+            else:
+                row = float(row[0])
+                rowMax = row
+                rowMin = row
+            rowMaxList.append(rowMax)
+            rowMinList.append(rowMin)
+        #print("rowMaxMin")
+        #print(rowMaxMin[0][:])
+        dataMax = max(rowMaxList)
+        dataMin = min(rowMinList)
+        dataMaxMin.append([dataMax,dataMin])
+        print(dataMaxMin)
+        
+        return dataMaxMin
 
 class DisplayClass:
     def __init__(self,Configuration,EventsCallback = None):
@@ -212,23 +265,34 @@ class DisplayClass:
 class UpdateClass:
     #Data = []
     def __init__(self,Configuration,Display,CSV):
-        self.CSV = CSV
+        # Links to other shared classes
         self.Configuration = Configuration
+        self.CSV = CSV
+        self.Display = Display # manages what is shown on display 
+        # Unpack configuration datums
         boards = Configuration.boards
         self.boards = boards
         receivers = Configuration.rpboard
         self.receivers = receivers
+        # Setup lists which will be updated
         self.squareList = []
-        self.Display = Display # manages what is shown on display
-        packedData = CSV.getData()
-        squareData = packedData[0]
-        self.squareData = squareData
-        squareDataMaxMin = packedData[1]
-        self.squareDataMaxMin = squareDataMaxMin
-        squareDataRowMaxMins = packedData[2]
-        self.squareDataRowMaxMins = squareDataRowMaxMins
-        print(squareDataMaxMin)
-        self.Row = 1
+
+        # Import data
+        BWRecData = CSV.mappedSets
+        self.BWRecData = BWRecData
+
+        self.prepData()
+
+        self.row = 0
+        #packedData = CSV.getData()
+        #squareData = packedData[0]
+        #self.squareData = squareData
+        #squareDataMaxMin = packedData[1]
+        #self.squareDataMaxMin = squareDataMaxMin
+        #squareDataRowMaxMins = packedData[2]
+        #self.squareDataRowMaxMins = squareDataRowMaxMins
+        #print(squareDataMaxMin)
+        #self.Row = 1
         #self.initSquares()
         #CSV.getFoldedRow()
         print("Update Class Initialized")
@@ -240,13 +304,8 @@ class UpdateClass:
         squareSize = self.Configuration.squareSize # is max square size
         offset = self.Configuration.offset
         boards = self.boards
-        #print(boards)
         for indexR in range(0,(receivers)):
-            #if indexR == 2:
-            #    squareSize = 24
-            #else:
-            #    squareSize = self.Configuration.squareSize
-            new = []
+            new = [] # new Square
             for indexB in range(0,(boards)):
                 Sq = Square(squareSize)
                 x = offset + 2*indexB*squareSize
@@ -259,76 +318,95 @@ class UpdateClass:
         self.squareSize = squareSize
         Display.update("squares",squareList)
 
+    def prepData(self):
+        data = self.BWRecData
+        Configuration = self.Configuration
+
+        #Determine range of readings
+        #For 'Av'
+        Av = Configuration.squareColourFrom
+        if Av not in data:
+            print("Column %s in 'squareColourFrom' does not exist.. exiting"%(Av))
+            sys.exit()
+        print("Square colour will be calculated from: %s"%(Av))
+        AvMaxMin = data[Av]["maxmin"][0]
+        AvRange = AvMaxMin[0] - AvMaxMin[1]
+        AvDiff = []
+        for row in data[Av]["data"][1:]:
+            newRow = []
+            newRow = [float(i) - AvMaxMin[1] for i in row]
+            AvDiff.append(newRow)
+        AvPerc = []
+        for row in AvDiff:
+            newRow = []
+            newRow = [float(i) / AvMaxMin[0] for i in row]
+            AvPerc.append(newRow)
+        #AvDiff = [float(i) - AvMaxMin[1] for i in data[Av]["data"][1]]
+        #AvPerc = [i/AvMaxMin[0] for i in AvDiff]
+
+        self.AvPerc = AvPerc
+        
+        #For 'SD'
+        Sd = Configuration.squareSizeFrom
+        if Sd not in data:
+            print("Column %s in 'squareSizeFrom' does not exist.. exiting"%(Av))
+        print("Square size will be calculated from: %s"%(Sd))
+        SdMaxMin = data[Sd]["maxmin"][0]
+        SdRange = SdMaxMin[0] - SdMaxMin[1]
+        SdDiff = [float(i) - AvMaxMin[1] for i in data[Sd]["data"][1]]
+        SdPerc = [i/AvMaxMin[0] for i in SdDiff]
+
+        self.SdPerc = SdPerc
+        
     def updateSquares(self):
+        AvPerc = self.AvPerc
+        SdPerc = self.SdPerc
+        row = self.row
+
+        #print(AvPerc)
+        
+        #sys.exit()
         Display = self.Display
         squareList = self.squareList
-        CSV = self.CSV
-        
-        #Values = CSV.getFoldedRow()
-        currentRow = self.squareData[self.Row]
-        timeStamp = currentRow[0]
-        currentRow = currentRow[1:]
-        # Find out how many receivers
-        recs = self.receivers * self.boards
-        MaxMins = self.squareDataMaxMin
-        Range = MaxMins[0] - MaxMins[1]
-        rowAsDiff = [i - MaxMins[1] for i in currentRow[0:recs]]
-        #print(rowAsDiff)
-        #row[1:] = [float(i) for i in row[1:]]
-        # set the colours
+        squareSize = self.squareSize
+
+        #rowAsDiff = [i - MaxMins[1] for i in currentRow[0:recs]]
+
         currentIndex = 0
-        for indexB,board in enumerate(squareList):
-            for indexR,rec in enumerate(board):
-                recTemp = rowAsDiff[currentIndex]
-                #print(recTemp)
-                pDiff = recTemp / Range
-                Red = pDiff * 200
-                Blue = (1-pDiff)*200
-                rec.colour = (Red,0,Blue)
-                #print(rec.colour)
-                currentIndex += 1
+        print(squareList)
+        for index,board in enumerate(squareList):
+                    
+            Red = AvPerc[row][index] * 200
+            Blue = (1-AvPerc[row][index])*200
+            #squareList
+            #rec.colour = (Red,0,Blue)
+            #print(rec.colour)
+            currentIndex += 1
         # Adjust size to be inversley proportional to sd
         currentIndex = 0
-        squareSize = self.squareSize
-        Range = MaxMins[2] - MaxMins[3]
-        rowAsDiff = [i - MaxMins[3] for i in currentRow[recs:]]
-        for indexB,board in enumerate(squareList):
-            for indexR,rec in enumerate(board):
-                recSd = rowAsDiff[currentIndex]
-                #print(recSd)
-                pDiff = recSd / Range
-                rec.size = squareSize * (1-pDiff)
-                #print(rec.size)
-                currentIndex += 1
-        
-                #Red = recTemp
-                #print(rec.colour)
         
 
-        # set the size
-
         
-        Display.update("squares",squareList,(str(self.Row)+":"+timeStamp))
-        self.Row += 1
-        if self.Row == len(self.squareData): self.Row = 1
+        Display.update("squares",squareList)
+        self.row += 1
+        if self.row == len(self.squareData): self.row = 1
         
 class Square:
     def __init__(self,size):
         self.position = [0,0]
         self.size = size
         self.colour = [0,0,0]
-        self.heat = 0
+        self.Av = 0
     
 def main():
     Configuration = ConfigClass()
-    CSV = CSVLoader(Configuration.CSVFilename)
+    CSV = CSVLoader(Configuration)
     
     Display = DisplayClass(Configuration)
     Update = UpdateClass(Configuration,Display,CSV)
     Display.setup()
     Update.initSquares()
-    #print(CSV.headers)
-    #Squares
+    
     running = True
     while running:
         pygame.display.flip()
