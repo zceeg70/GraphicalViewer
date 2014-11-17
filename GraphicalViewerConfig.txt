@@ -1,0 +1,23 @@
+{
+"CSV_to_load":"BWTestData.txt",
+"timeFormat":"%Y-%m-%d %H:%M:%S.%f",
+"plottingEnabled":true,
+"plots":[
+	["Timestamp","Hot Cal Tgt Temp","Cold Cal Tgt Temp"],
+	["Timestamp","Ac"],
+	["Hot Cal Tgt Temp","Ac"]
+	],
+"csvEnabled":true,
+"csvs":[
+	["Timestamp","Ac"]
+	],
+"csvOutputFile":[
+	      ["TimeVsGain.txt"]
+	     ],
+"colourSteps":10,
+"colourEnabled":true,
+"squareSize": 28,
+"offset": 70,
+"details":[10,10],
+"dimensions":[800,600]
+}
