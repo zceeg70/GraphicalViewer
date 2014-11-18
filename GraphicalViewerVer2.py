@@ -1,4 +1,5 @@
 import pygame as pygame
+from pygame import mouse
 #import time
 import json
 import os.path
@@ -242,21 +243,31 @@ class DisplayClass:
 
     def update(self,string, oList,label = "blank"):
         screen = self.screen
+##        Configuration = self.Configuration
+##        boards = Configuration.boards
+##        receivers = Configuration.receivers
         myfont = pygame.font.SysFont("monospace",15,bold=True)
         self.redraw()
         if string is "squares":
             maxSize = self.Configuration.squareSize
             title = myfont.render(label,1,(200,0,0))
-            firstSquarePos = oList[0][0].position
-            for squareRow in oList:
-                for square in squareRow:
-                    position = square.position
-                    colour = square.colour
-                    size = square.size
-                    position = [position[0]-(size/2),position[1]-(size/2),size,size]
-                    #print(position)
-                    pygame.draw.rect(screen,colour,position,0)
-            #titlePos  = firstSquarePos[0]
+##            firstSquarePos = oList[0][0].position
+##            for squareRow in oList:
+##                for square in squareRow:
+##                    position = square.position
+##                    colour = square.colour
+##                    size = square.size
+##                    position = [position[0]-(size/2),position[1]-(size/2),size,size]
+##                    #print(position)
+##                    pygame.draw.rect(screen,colour,position,0)
+##            #titlePos  = firstSquarePos[0]
+            firstSquarePos = oList[0].position
+            for square in oList:
+                position = square.position
+                colour = square.colour
+                size = square.size
+                position = [position[0]-(size/2),position[1]-(size/2),size,size]
+                pygame.draw.rect(screen,colour,position,0)
             titlePos = [firstSquarePos[0]-maxSize,firstSquarePos[1]-maxSize]
             screen.blit(title,titlePos)
 
@@ -284,17 +295,6 @@ class UpdateClass:
         self.prepData()
 
         self.row = 0
-        #packedData = CSV.getData()
-        #squareData = packedData[0]
-        #self.squareData = squareData
-        #squareDataMaxMin = packedData[1]
-        #self.squareDataMaxMin = squareDataMaxMin
-        #squareDataRowMaxMins = packedData[2]
-        #self.squareDataRowMaxMins = squareDataRowMaxMins
-        #print(squareDataMaxMin)
-        #self.Row = 1
-        #self.initSquares()
-        #CSV.getFoldedRow()
         print("Update Class Initialized")
         
     def initSquares(self):
@@ -304,16 +304,17 @@ class UpdateClass:
         squareSize = self.Configuration.squareSize # is max square size
         offset = self.Configuration.offset
         boards = self.boards
-        for indexR in range(0,(receivers)):
-            new = [] # new Square
-            for indexB in range(0,(boards)):
-                Sq = Square(squareSize)
-                x = offset + 2*indexB*squareSize
-                y = offset + 2*indexR*squareSize
-                Sq.position = (x,y)
-                #print(Sq.position)
-                new.append(Sq)
-            squareList.append(new)
+        squaresNeeded = receivers*boards
+        
+        for recCount in xrange(0,squaresNeeded):
+            Sq = Square(squareSize)
+            x = offset + int(recCount%10)*2*squareSize
+            y = offset + int(recCount/10)*2*squareSize
+            Sq.position = (x,y)
+##            print(x,y)
+            squareList.append(Sq)
+        #print(len(squareList))
+##        sys.exit()
                 #squareList[board][receiver] = Sq
         self.squareSize = squareSize
         Display.update("squares",squareList)
@@ -339,11 +340,9 @@ class UpdateClass:
         AvPerc = []
         for row in AvDiff:
             newRow = []
-            newRow = [float(i) / AvMaxMin[0] for i in row]
+            newRow = [float(i) / AvRange for i in row]
             AvPerc.append(newRow)
-        #AvDiff = [float(i) - AvMaxMin[1] for i in data[Av]["data"][1]]
-        #AvPerc = [i/AvMaxMin[0] for i in AvDiff]
-
+        #Result - Av converted into a percentage.
         self.AvPerc = AvPerc
         
         #For 'SD'
@@ -353,9 +352,17 @@ class UpdateClass:
         print("Square size will be calculated from: %s"%(Sd))
         SdMaxMin = data[Sd]["maxmin"][0]
         SdRange = SdMaxMin[0] - SdMaxMin[1]
-        SdDiff = [float(i) - AvMaxMin[1] for i in data[Sd]["data"][1]]
-        SdPerc = [i/AvMaxMin[0] for i in SdDiff]
-
+        SdDiff = []
+        for row in data[Sd]["data"][1:]:
+            newRow = []
+            newRow = [float(i) - SdMaxMin[1] for i in row]
+            SdDiff.append(newRow)
+        SdPerc = []
+        for row in SdDiff:
+            newRow = []
+            newRow = [ 1 - (i / SdRange) for i in row]
+            SdPerc.append(newRow)
+        #Result 
         self.SdPerc = SdPerc
         
     def updateSquares(self):
@@ -363,33 +370,40 @@ class UpdateClass:
         SdPerc = self.SdPerc
         row = self.row
 
-        #print(AvPerc)
-        
-        #sys.exit()
         Display = self.Display
         squareList = self.squareList
         squareSize = self.squareSize
 
-        #rowAsDiff = [i - MaxMins[1] for i in currentRow[0:recs]]
-
         currentIndex = 0
-        print(squareList)
-        for index,board in enumerate(squareList):
+##        print(squareList)
+        for index,square in enumerate(squareList):
                     
             Red = AvPerc[row][index] * 200
             Blue = (1-AvPerc[row][index])*200
-            #squareList
-            #rec.colour = (Red,0,Blue)
-            #print(rec.colour)
+            square.colour = (Red,0,Blue)
+
+            square.size = squareSize*SdPerc[row][index]
             currentIndex += 1
         # Adjust size to be inversley proportional to sd
         currentIndex = 0
-        
+        Timestamp = str(self.BWRecData["Timestamp"]["data"][row+1])
+        #print(Timestamp)
 
         
-        Display.update("squares",squareList)
+        Display.update("squares",squareList,str(row)+Timestamp)
         self.row += 1
-        if self.row == len(self.squareData): self.row = 1
+        if self.row == len(AvPerc): self.row = 1
+
+    def squarePressed(self,pos):
+        squareList = self.squareList
+        squareSize = self.squareSize*2 # defines the search radius
+        difference = []
+        for square in squareList:
+            sqPos = square.position
+            difference = (sqPos[0] - pos[0])**2 + (sqPos[1]-pos[1])**2
+            if difference < squareSize:
+                return square
+        return False
         
 class Square:
     def __init__(self,size):
@@ -410,10 +424,15 @@ def main():
     running = True
     while running:
         pygame.display.flip()
-        pygame.time.delay(900)
+        pygame.time.delay(100)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+                square = Update.squarePressed(pos)
+                if not type(square) is bool:
+                    print(square.position)
         Update.updateSquares()
     pygame.quit()
     
