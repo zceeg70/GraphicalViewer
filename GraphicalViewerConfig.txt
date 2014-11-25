@@ -1,5 +1,5 @@
 {
-"CSV_to_load":"BWTestData.txt",
+"CSV_to_load":"251114stats.csv",
 "timeFormat":"%Y-%m-%d %H:%M:%S.%f",
 "plottingEnabled":true,
 "plots":[
@@ -23,5 +23,5 @@
 "squareSize": 28,
 "offset": 70,
 "boards|recs":[10,10],
-"dimensions":[800,600]
+"dimensions":[1100,648]
 }
